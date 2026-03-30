@@ -16,7 +16,7 @@ col1, col2 = st.columns(2)
 with col1:
     owner_name = st.text_input("Owner name", value="Jordan")
 with col2:
-    available_minutes = st.number_input("Available time (minutes)", min_value=10, max_value=480, value=120)
+    available_minutes = st.number_input("Available time (minutes)", min_value=0, max_value=480, value=120)
 
 if st.button("Save owner"):
     st.session_state.owner = Owner(name=owner_name, available_minutes=available_minutes)
@@ -39,7 +39,6 @@ else:
         age = st.number_input("Pet age", min_value=0, max_value=30, value=3)
 
     if st.button("Add pet"):
-        # Calls owner.add_pet() — the UI action maps directly to the class method
         new_pet = Pet(name=pet_name, species=species, age=age)
         st.session_state.owner.add_pet(new_pet)
         st.success(f"Added pet '{pet_name}' to {st.session_state.owner.name}!")
@@ -62,17 +61,19 @@ else:
     selected_pet_name = st.selectbox("Assign task to pet", pet_names)
     selected_pet = next(p for p in owner.pets if p.name == selected_pet_name)
 
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
     with col1:
         task_title = st.text_input("Task title", value="Morning walk")
     with col2:
         duration = st.number_input("Duration (minutes)", min_value=1, max_value=240, value=20)
     with col3:
         priority = st.selectbox("Priority", ["low", "medium", "high"], index=2)
+    with col4:
+        frequency = st.selectbox("Frequency", ["daily", "weekly", "as_needed"])
 
     if st.button("Add task"):
-        # Calls pet.add_task() — directly wired to the class method
-        task = CareTask(title=task_title, duration_minutes=int(duration), priority=priority)
+        task = CareTask(title=task_title, duration_minutes=int(duration),
+                        priority=priority, frequency=frequency)
         selected_pet.add_task(task)
         st.success(f"Added '{task_title}' to {selected_pet_name}!")
 
@@ -80,7 +81,7 @@ else:
     if pending:
         st.write(f"Tasks for {selected_pet_name}:")
         st.table([{"title": t.title, "duration (min)": t.duration_minutes,
-                   "priority": t.priority} for t in pending])
+                   "priority": t.priority, "frequency": t.frequency} for t in pending])
     else:
         st.info("No tasks yet for this pet.")
 
@@ -96,5 +97,42 @@ if st.button("Generate schedule"):
     else:
         scheduler = Scheduler(owner)
         scheduler.build_plan()
-        st.success("Schedule generated!")
-        st.text(scheduler.explain_plan())
+
+        # --- Conflict warnings (shown before the schedule) ---
+        conflicts = scheduler.detect_conflicts()
+        if conflicts:
+            st.error(f"{len(conflicts)} scheduling conflict(s) detected — review before proceeding:")
+            for c in conflicts:
+                st.warning(c)
+
+        # --- Schedule table sorted by start time ---
+        sorted_schedule = scheduler.sort_by_time()
+        if sorted_schedule:
+            st.success(f"Schedule ready — {sum(t.duration_minutes for _, t in sorted_schedule)} of "
+                       f"{owner.available_minutes} minutes planned.")
+
+            rows = []
+            for pet, task in sorted_schedule:
+                hours, mins = divmod(task.start_time, 60)
+                period = "am" if hours < 12 else "pm"
+                display_hour = hours if 1 <= hours <= 12 else (12 if hours == 0 else hours - 12)
+                rows.append({
+                    "Time": f"{display_hour}:{mins:02d}{period}",
+                    "Task": task.title,
+                    "Pet": pet.name,
+                    "Duration (min)": task.duration_minutes,
+                    "Priority": task.priority.upper(),
+                    "Frequency": task.frequency,
+                })
+            st.table(rows)
+
+        # --- Filter: show tasks by pet ---
+        st.markdown("**Filter by pet:**")
+        filter_pet = st.selectbox("Show tasks for", [p.name for p in owner.pets],
+                                  key="filter_pet")
+        pet_tasks = scheduler.filter_by_pet(filter_pet)
+        if pet_tasks:
+            st.table([{"Task": t.title, "Priority": t.priority.upper(),
+                       "Duration (min)": t.duration_minutes} for t in pet_tasks])
+        else:
+            st.info(f"No scheduled tasks for {filter_pet}.")

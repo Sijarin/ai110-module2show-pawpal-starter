@@ -1,0 +1,44 @@
+classDiagram
+    class CareTask {
+        +str title
+        +int duration_minutes
+        +str priority
+        +str frequency
+        +bool completed
+        +int start_time
+        +date due_date
+    }
+
+    class Pet {
+        +str name
+        +str species
+        +int age
+        +list tasks
+        +add_task(task)
+        +get_pending_tasks()
+    }
+
+    class Owner {
+        +str name
+        +list pets
+        +int available_minutes
+        +add_pet(pet)
+        +get_all_tasks()
+    }
+
+    class Scheduler {
+        +Owner owner
+        +list schedule
+        +build_plan()
+        +explain_plan()
+        +mark_completed(title)
+        +detect_conflicts()
+        +sort_by_time()
+        +filter_by_pet(name)
+        +filter_by_status(completed)
+    }
+
+    Owner "1" --> "1..*" Pet : has
+    Pet "1" --> "0..*" CareTask : owns
+    Scheduler "1" --> "1" Owner : uses
+    Scheduler ..> CareTask : schedules
