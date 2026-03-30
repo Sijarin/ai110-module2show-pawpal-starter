@@ -92,7 +92,7 @@ class Scheduler:
             )
 
         total = sum(t.duration_minutes for _, t in self.schedule)
-        lines.append(f"\nTotal time: {total} min of {self.owner.available_minutes} min available.")
+        lines.append(f"\n{total} of {self.owner.available_minutes} minutes scheduled.")
         return "\n".join(lines)
 
     def mark_completed(self, task_title: str) -> bool:
