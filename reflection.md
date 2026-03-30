@@ -7,10 +7,14 @@
 - Briefly describe your initial UML design.
 - What classes did you include, and what responsibilities did you assign to each?
 
+Answer: Four classes — Pet (animal info), Owner (name + availability, has-a Pet), CareTask (title, duration, priority — data only), and Scheduler (builds and explains the daily plan using priority and time constraints).
+
 **b. Design changes**
 
 - Did your design change during implementation?
 - If yes, describe at least one change and why you made it.
+
+Answer: After AI review, three changes were noted. First, added `start_time` to `CareTask` so the scheduler can record when each task begins. Second, added a guard in `explain_plan()` to raise an error if `build_plan()` hasn't been called first. Third, the AI flagged that `owner.available_minutes` was never read inside `build_plan()` — this wasn't a code change yet, but a reminder to use it as a time cap when implementing the scheduling logic.
 
 ---
 
