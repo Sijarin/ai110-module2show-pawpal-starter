@@ -32,6 +32,27 @@ PawPal+ includes algorithmic scheduling logic beyond a simple sorted list:
 - **Filtering** — `filter_by_pet(name)` returns tasks for a specific pet; `filter_by_status(completed)` returns pending or finished tasks.
 - **Sort by time** — `sort_by_time()` re-orders the schedule by actual start time for display purposes.
 
+## Testing PawPal+
+
+Run the full test suite with:
+
+```bash
+python3 -m pytest tests/test_pawpal.py -v
+```
+
+**What the tests cover (12 tests):**
+
+- Sorting correctness — high-priority tasks are scheduled before low-priority ones
+- Time budget enforcement — tasks that exceed available minutes are excluded
+- Recurrence logic — completing a daily task creates a new task due tomorrow; weekly creates one due in 7 days
+- No recurrence for `as_needed` tasks
+- Conflict detection — overlapping start times are flagged; non-overlapping tasks produce no warnings
+- Edge cases — empty pet task list, zero available minutes, filtering by unknown pet name
+
+**Confidence level: 4/5**
+
+Core scheduling behaviors are well covered. The main gap is end-to-end UI testing (the Streamlit layer is not tested) and loading tasks from a persistent store, which aren't implemented yet.
+
 ## Getting started
 
 ### Setup
