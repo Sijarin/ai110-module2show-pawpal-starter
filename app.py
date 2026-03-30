@@ -1,13 +1,35 @@
+import os
 import streamlit as st
 from pawpal_system import CareTask, Pet, Owner, Scheduler
+
+DATA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data.json")
+
+SPECIES_EMOJI = {"dog": "🐶", "cat": "🐱", "other": "🐾"}
+PRIORITY_EMOJI = {"HIGH": "🔴", "MEDIUM": "🟡", "LOW": "🟢"}
 
 st.set_page_config(page_title="PawPal+", page_icon="🐾", layout="centered")
 
 st.title("🐾 PawPal+")
 
+# --- Sidebar: Clear saved data ---
+with st.sidebar:
+    st.header("Data Management")
+    if st.button("Clear saved data"):
+        if os.path.exists(DATA_FILE):
+            os.remove(DATA_FILE)
+        st.session_state.owner = None
+        st.success("Saved data cleared and session reset.")
+
 # --- Session state setup ---
 if "owner" not in st.session_state:
-    st.session_state.owner = None
+    # On startup, load from data.json if it exists
+    if os.path.exists(DATA_FILE):
+        try:
+            st.session_state.owner = Owner.load_from_json(DATA_FILE)
+        except Exception:
+            st.session_state.owner = None
+    else:
+        st.session_state.owner = None
 
 # --- Step 1: Create Owner ---
 st.subheader("Step 1: Owner")
@@ -20,6 +42,7 @@ with col2:
 
 if st.button("Save owner"):
     st.session_state.owner = Owner(name=owner_name, available_minutes=available_minutes)
+    st.session_state.owner.save_to_json(DATA_FILE)
     st.success(f"Owner '{owner_name}' saved!")
 
 st.divider()
@@ -41,6 +64,7 @@ else:
     if st.button("Add pet"):
         new_pet = Pet(name=pet_name, species=species, age=age)
         st.session_state.owner.add_pet(new_pet)
+        st.session_state.owner.save_to_json(DATA_FILE)
         st.success(f"Added pet '{pet_name}' to {st.session_state.owner.name}!")
 
     if st.session_state.owner.pets:
@@ -75,6 +99,7 @@ else:
         task = CareTask(title=task_title, duration_minutes=int(duration),
                         priority=priority, frequency=frequency)
         selected_pet.add_task(task)
+        owner.save_to_json(DATA_FILE)
         st.success(f"Added '{task_title}' to {selected_pet_name}!")
 
     pending = selected_pet.get_pending_tasks()
@@ -116,12 +141,15 @@ if st.button("Generate schedule"):
                 hours, mins = divmod(task.start_time, 60)
                 period = "am" if hours < 12 else "pm"
                 display_hour = hours if 1 <= hours <= 12 else (12 if hours == 0 else hours - 12)
+                priority_upper = task.priority.upper()
+                priority_display = f"{PRIORITY_EMOJI.get(priority_upper, '')} {priority_upper}"
+                species_emoji = SPECIES_EMOJI.get(pet.species, "🐾")
                 rows.append({
                     "Time": f"{display_hour}:{mins:02d}{period}",
                     "Task": task.title,
-                    "Pet": pet.name,
+                    "Pet": f"{species_emoji} {pet.name}",
                     "Duration (min)": task.duration_minutes,
-                    "Priority": task.priority.upper(),
+                    "Priority": priority_display,
                     "Frequency": task.frequency,
                 })
             st.table(rows)

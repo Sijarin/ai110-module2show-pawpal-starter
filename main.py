@@ -1,6 +1,8 @@
 from datetime import date
+from tabulate import tabulate
 from pawpal_system import CareTask, Pet, Owner, Scheduler
 
+SPECIES_EMOJI = {"dog": "🐶", "cat": "🐱", "other": "🐾"}
 
 # --- Setup ---
 owner = Owner(name="Jordan", available_minutes=120)
@@ -23,11 +25,28 @@ owner.add_pet(cat)
 scheduler = Scheduler(owner)
 scheduler.build_plan()
 
-# --- Full schedule ---
-print("=" * 40)
-print("       TODAY'S SCHEDULE")
-print("=" * 40)
-print(scheduler.explain_plan())
+# --- Full schedule (tabulate) ---
+print("=" * 50)
+print("           TODAY'S SCHEDULE")
+print("=" * 50)
+
+sorted_schedule = scheduler.sort_by_time()
+table_rows = []
+for pet, task in sorted_schedule:
+    hours, mins = divmod(task.start_time, 60)
+    period = "am" if hours < 12 else "pm"
+    display_hour = hours if 1 <= hours <= 12 else (12 if hours == 0 else hours - 12)
+    time_str = f"{display_hour}:{mins:02d}{period}"
+    species_emoji = SPECIES_EMOJI.get(pet.species, "🐾")
+    table_rows.append([
+        time_str,
+        f"{species_emoji} {pet.name}",
+        task.title,
+        task.duration_minutes,
+        task.priority.upper(),
+    ])
+
+print(tabulate(table_rows, headers=["Time", "Pet", "Task", "Duration", "Priority"], tablefmt="grid"))
 
 # --- Sorted by start time ---
 print("\n--- Sorted by start time ---")
@@ -60,6 +79,17 @@ if conflicts:
 else:
     print("  No conflicts found.")
 
+# --- find_next_slot demo ---
+print("\n--- find_next_slot demo ---")
+# Reset start_times to the built plan values before testing find_next_slot
+scheduler.build_plan()
+slot_30 = scheduler.find_next_slot(30)
+slot_5 = scheduler.find_next_slot(5)
+slot_huge = scheduler.find_next_slot(999)
+print(f"  First slot for 30-min task: {slot_30} min from midnight")
+print(f"  First slot for 5-min task:  {slot_5} min from midnight")
+print(f"  First slot for 999-min task: {slot_huge} (None = no room)")
+
 # --- Recurring task demo ---
 print("\n--- Completing 'Morning walk' (daily recurring) ---")
 scheduler.mark_completed("Morning walk")
@@ -75,4 +105,4 @@ for task in cat.tasks:
     status = "done" if task.completed else f"due {task.due_date}"
     print(f"    {task.title} [{task.frequency}] — {status}")
 
-print("=" * 40)
+print("=" * 50)

@@ -84,10 +84,70 @@ Answer: The recurring task logic. Having `mark_completed()` automatically create
 
 - If you had another iteration, what would you improve or redesign?
 
-Answer: I would add persistent storage so tasks survive a page refresh in Streamlit. Right now all data resets when the app restarts. A simple JSON file or SQLite database would make the app usable day-to-day rather than just as a demo.
+Answer: I would add persistent storage so tasks survive a page refresh in Streamlit. Right now all data resets when the app restarts. A simple JSON file or SQLite database would make the app usable day to day rather than just as a demo.
 
 **c. Key takeaway**
 
 - What is one important thing you learned about designing systems or working with AI on this project?
 
-Answer: AI is best used as a fast second opinion, not a first author. Every time I brought a specific, concrete question — a method signature, an edge case, a readability tradeoff — the suggestions were useful. When the question was too open-ended, the output needed heavy editing. The clearest lesson: the human has to own the architecture. AI fills in the gaps faster, but it doesn't know what matters to the project unless you tell it.
+Answer: AI is best used as a fast second opinion, not a first author. Every time I brought a specific, concrete question  a method signature, an edge case, a readability tradeoff the suggestions were useful. When the question was too open-ended, the output needed heavy editing. The clearest lesson: the human has to own the architecture. AI fills in the gaps faster, but it doesn't know what matters to the project unless you tell it.
+
+---
+
+## 6. Prompt Comparison (Challenge 5)
+
+**The prompt used:**
+
+"Write a Python function that automatically reschedules a completed weekly care task to its next occurrence, one week later."
+
+---
+
+**What GPT-4 returned:**
+
+GPT-4 produced a standalone utility function placed outside any class:
+
+```python
+def reschedule_weekly_task(task, today=None):
+    from datetime import date, timedelta
+    if today is None:
+        today = date.today()
+    new_task = {
+        "title": task["title"],
+        "duration_minutes": task["duration_minutes"],
+        "priority": task["priority"],
+        "frequency": "weekly",
+        "due_date": (today + timedelta(days=7)).isoformat(),
+        "completed": False,
+    }
+    return new_task
+```
+
+The function accepts and returns plain dicts. It imports `timedelta` inline, requires the caller to manually append the result to whatever list stores tasks, and has no awareness of the existing `CareTask`, `Pet`, or `Scheduler` classes. To use it in PawPal+ the caller would need to convert a `CareTask` to a dict, call the function, convert the result back to a `CareTask`, and append it to `pet.tasks` — four steps that the existing class design could handle in one.
+
+---
+
+**What Claude returned:**
+
+Claude integrated the logic directly into `Scheduler.mark_completed()` as an extension of the existing method:
+
+```python
+if task.frequency in RECURRENCE_DAYS:
+    days_ahead = RECURRENCE_DAYS[task.frequency]
+    next_due = (task.due_date or date.today()) + timedelta(days=days_ahead)
+    next_task = CareTask(
+        title=task.title,
+        duration_minutes=task.duration_minutes,
+        priority=task.priority,
+        frequency=task.frequency,
+        due_date=next_due,
+    )
+    pet.add_task(next_task)
+```
+
+This version reuses the existing `RECURRENCE_DAYS` dict (so daily and weekly are handled by the same branch), constructs a proper `CareTask` dataclass instance, and calls `pet.add_task()` — the method already defined for this purpose. No new imports, no dict conversion, no extra steps for the caller.
+
+---
+
+**Which was more Pythonic and why:**
+
+Claude's version was more Pythonic. It stayed inside the existing class hierarchy instead of adding a free-floating helper, used named constants from `RECURRENCE_DAYS` rather than a magic number, and delegated object creation and list management to the classes that own those responsibilities. GPT-4's approach would work in isolation but introduces friction — callers must bridge between dict and dataclass representations — and duplicates knowledge about recurrence intervals that `RECURRENCE_DAYS` already encodes. The principle "don't repeat yourself" and Python's preference for expressive, cohesive methods over utility functions both favor Claude's integrated design.

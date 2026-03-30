@@ -1,3 +1,5 @@
+import json
+import os
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import Literal
@@ -20,6 +22,32 @@ class CareTask:
     start_time: int | None = None  # minutes from midnight, assigned by Scheduler
     due_date: date | None = None   # date this task is due; None means no specific due date
 
+    def to_dict(self) -> dict:
+        """Convert this CareTask to a plain dict for JSON serialization."""
+        return {
+            "title": self.title,
+            "duration_minutes": self.duration_minutes,
+            "priority": self.priority,
+            "frequency": self.frequency,
+            "completed": self.completed,
+            "start_time": self.start_time,
+            "due_date": self.due_date.isoformat() if self.due_date is not None else None,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "CareTask":
+        """Reconstruct a CareTask from a plain dict."""
+        due_date = date.fromisoformat(data["due_date"]) if data.get("due_date") is not None else None
+        return cls(
+            title=data["title"],
+            duration_minutes=data["duration_minutes"],
+            priority=data["priority"],
+            frequency=data.get("frequency", "daily"),
+            completed=data.get("completed", False),
+            start_time=data.get("start_time"),
+            due_date=due_date,
+        )
+
 
 @dataclass
 class Pet:
@@ -37,6 +65,26 @@ class Pet:
         """Return tasks that have not been completed."""
         return [t for t in self.tasks if not t.completed]
 
+    def to_dict(self) -> dict:
+        """Convert this Pet to a plain dict for JSON serialization."""
+        return {
+            "name": self.name,
+            "species": self.species,
+            "age": self.age,
+            "tasks": [t.to_dict() for t in self.tasks],
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "Pet":
+        """Reconstruct a Pet from a plain dict."""
+        pet = cls(
+            name=data["name"],
+            species=data["species"],
+            age=data["age"],
+        )
+        pet.tasks = [CareTask.from_dict(t) for t in data.get("tasks", [])]
+        return pet
+
 
 @dataclass
 class Owner:
@@ -52,6 +100,36 @@ class Owner:
     def get_all_tasks(self) -> list[tuple[Pet, CareTask]]:
         """Return all pending tasks across all pets as (pet, task) pairs."""
         return [(pet, task) for pet in self.pets for task in pet.get_pending_tasks()]
+
+    def to_dict(self) -> dict:
+        """Convert this Owner to a plain dict for JSON serialization."""
+        return {
+            "name": self.name,
+            "available_minutes": self.available_minutes,
+            "pets": [p.to_dict() for p in self.pets],
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "Owner":
+        """Reconstruct an Owner from a plain dict."""
+        owner = cls(
+            name=data["name"],
+            available_minutes=data.get("available_minutes", 480),
+        )
+        owner.pets = [Pet.from_dict(p) for p in data.get("pets", [])]
+        return owner
+
+    def save_to_json(self, filepath: str) -> None:
+        """Write this Owner's data to a JSON file."""
+        with open(filepath, "w", encoding="utf-8") as f:
+            json.dump(self.to_dict(), f, indent=2)
+
+    @classmethod
+    def load_from_json(cls, filepath: str) -> "Owner":
+        """Read a JSON file and return a fully reconstructed Owner object."""
+        with open(filepath, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return cls.from_dict(data)
 
 
 class Scheduler:
@@ -154,3 +232,34 @@ class Scheduler:
     def filter_by_status(self, completed: bool) -> list[tuple[Pet, CareTask]]:
         """Return scheduled tasks matching the given completion status."""
         return [(pet, task) for pet, task in self.schedule if task.completed == completed]
+
+    def find_next_slot(self, duration_minutes: int) -> int | None:
+        """Return the first start time (minutes from midnight) with a gap large enough for duration_minutes.
+
+        Scans the current schedule sorted by start_time and looks for a free gap before the
+        owner's available_minutes runs out. Returns the gap's start minute, or None if no
+        gap large enough exists within the available time budget.
+        """
+        # Build a list of (start, end) intervals from scheduled tasks that have a start_time
+        intervals = sorted(
+            [(task.start_time, task.start_time + task.duration_minutes)
+             for _, task in self.schedule
+             if task.start_time is not None],
+            key=lambda iv: iv[0],
+        )
+
+        cursor = 0  # current position in the day (minutes from midnight)
+
+        for start, end in intervals:
+            # Gap between cursor and the next task's start
+            if start - cursor >= duration_minutes:
+                return cursor
+            # Advance cursor past this task if it pushes further
+            if end > cursor:
+                cursor = end
+
+        # Check remaining time after all scheduled tasks
+        if cursor + duration_minutes <= self.owner.available_minutes:
+            return cursor
+
+        return None
