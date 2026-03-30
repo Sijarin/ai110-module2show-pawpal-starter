@@ -6,11 +6,11 @@
 
 ## 📸 Demo
 
-<a href="/course_images/ai110/PAW1.png" target="_blank"><img src='/course_images/ai110/PAW1.png' title='PawPal App' width='' alt='PawPal App' class='center-block' /></a>
+![PawPal App](PAW1.png)
 
-<a href="/course_images/ai110/PAW2.png" target="_blank"><img src='/course_images/ai110/PAW2.png' title='PawPal App' width='' alt='PawPal App' class='center-block' /></a>
+![PawPal App](PAW2.png)
 
-<a href="/course_images/ai110/PAW3.png" target="_blank"><img src='/course_images/ai110/PAW3.png' title='PawPal App' width='' alt='PawPal App' class='center-block' /></a>
+![PawPal App](PAW3.png)
 
 ---
 

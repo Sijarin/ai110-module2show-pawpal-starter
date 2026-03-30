@@ -9,6 +9,7 @@ PRIORITY_EMOJI = {"HIGH": "🔴", "MEDIUM": "🟡", "LOW": "🟢"}
 
 st.set_page_config(page_title="PawPal+", page_icon="🐾", layout="centered")
 
+
 st.title("🐾 PawPal+")
 
 # --- Sidebar: Clear saved data ---
