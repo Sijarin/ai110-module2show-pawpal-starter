@@ -53,14 +53,12 @@ class Scheduler:
     """Retrieves, organizes, and schedules care tasks across an owner's pets."""
 
     def __init__(self, owner: Owner):
+        """Initialize the scheduler with an owner and an empty schedule."""
         self.owner = owner
         self.schedule: list[tuple[Pet, CareTask]] = []
 
     def build_plan(self) -> list[tuple[Pet, CareTask]]:
-        """
-        Select and order tasks by priority, fitting within the owner's
-        available time budget. Sets start_time on each scheduled task.
-        """
+        """Sort tasks by priority and schedule them within the owner's available time budget."""
         all_tasks = self.owner.get_all_tasks()
 
         # Sort by priority (high → medium → low)
@@ -86,7 +84,7 @@ class Scheduler:
         for pet, task in self.schedule:
             hours, mins = divmod(task.start_time, 60)
             period = "am" if hours < 12 else "pm"
-            display_hour = hours if hours <= 12 else hours - 12
+            display_hour = hours if 1 <= hours <= 12 else (12 if hours == 0 else hours - 12)
             time_str = f"{display_hour}:{mins:02d}{period}"
             lines.append(
                 f"  [{task.priority.upper()}] {time_str} — {task.title} "
