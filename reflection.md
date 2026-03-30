@@ -30,6 +30,8 @@ Answer: After AI review, three changes were noted. First, added `start_time` to 
 - Describe one tradeoff your scheduler makes.
 - Why is that tradeoff reasonable for this scenario?
 
+Answer: The conflict detector checks all pairs of tasks (O(n²)) rather than sorting by start time first and only checking neighbors (O(n log n)). For a pet care app with a small number of daily tasks, the simpler pairwise approach is fine and easier to read. A more efficient algorithm would only pay off with hundreds of tasks, which isn't a realistic scenario here.
+
 ---
 
 ## 3. AI Collaboration

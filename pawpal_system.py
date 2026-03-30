@@ -1,8 +1,12 @@
 from dataclasses import dataclass, field
+from datetime import date, timedelta
 from typing import Literal
 
 
 PRIORITY_ORDER = {"high": 0, "medium": 1, "low": 2}
+
+
+RECURRENCE_DAYS = {"daily": 1, "weekly": 7}
 
 
 @dataclass
@@ -14,6 +18,7 @@ class CareTask:
     frequency: Literal["daily", "weekly", "as_needed"] = "daily"
     completed: bool = False
     start_time: int | None = None  # minutes from midnight, assigned by Scheduler
+    due_date: date | None = None   # date this task is due; None means no specific due date
 
 
 @dataclass
@@ -61,8 +66,12 @@ class Scheduler:
         """Sort tasks by priority and schedule them within the owner's available time budget."""
         all_tasks = self.owner.get_all_tasks()
 
-        # Sort by priority (high → medium → low)
-        sorted_tasks = sorted(all_tasks, key=lambda pt: PRIORITY_ORDER[pt[1].priority])
+        # Primary sort: priority (high → medium → low)
+        # Secondary sort: shorter tasks first so more tasks fit in the time budget
+        sorted_tasks = sorted(
+            all_tasks,
+            key=lambda pt: (PRIORITY_ORDER[pt[1].priority], pt[1].duration_minutes)
+        )
 
         time_used = 0
         self.schedule = []
@@ -96,9 +105,52 @@ class Scheduler:
         return "\n".join(lines)
 
     def mark_completed(self, task_title: str) -> bool:
-        """Mark a scheduled task as completed by title. Returns True if found."""
-        for _, task in self.schedule:
+        """Mark a scheduled task as completed and schedule its next recurrence if applicable."""
+        for pet, task in self.schedule:
             if task.title.lower() == task_title.lower():
                 task.completed = True
+                # Auto-create the next occurrence for recurring tasks
+                if task.frequency in RECURRENCE_DAYS:
+                    days_ahead = RECURRENCE_DAYS[task.frequency]
+                    next_due = (task.due_date or date.today()) + timedelta(days=days_ahead)
+                    next_task = CareTask(
+                        title=task.title,
+                        duration_minutes=task.duration_minutes,
+                        priority=task.priority,
+                        frequency=task.frequency,
+                        due_date=next_due,
+                    )
+                    pet.add_task(next_task)
                 return True
         return False
+
+    def detect_conflicts(self) -> list[str]:
+        """Return warning messages for any tasks whose time windows overlap. Never raises."""
+        warnings = []
+        items = [(pet, task) for pet, task in self.schedule if task.start_time is not None]
+
+        for i in range(len(items)):
+            for j in range(i + 1, len(items)):
+                pet_a, task_a = items[i]
+                pet_b, task_b = items[j]
+                end_a = task_a.start_time + task_a.duration_minutes
+                end_b = task_b.start_time + task_b.duration_minutes
+                # Two intervals [s_a, end_a) and [s_b, end_b) overlap when neither ends before the other starts
+                if task_a.start_time < end_b and task_b.start_time < end_a:
+                    warnings.append(
+                        f"CONFLICT: '{task_a.title}' ({pet_a.name}, {task_a.start_time}-{end_a} min) "
+                        f"overlaps with '{task_b.title}' ({pet_b.name}, {task_b.start_time}-{end_b} min)"
+                    )
+        return warnings
+
+    def sort_by_time(self) -> list[tuple[Pet, CareTask]]:
+        """Return the schedule sorted by start_time (earliest first)."""
+        return sorted(self.schedule, key=lambda pt: pt[1].start_time or 0)
+
+    def filter_by_pet(self, pet_name: str) -> list[CareTask]:
+        """Return scheduled tasks belonging to a specific pet by name."""
+        return [task for pet, task in self.schedule if pet.name.lower() == pet_name.lower()]
+
+    def filter_by_status(self, completed: bool) -> list[tuple[Pet, CareTask]]:
+        """Return scheduled tasks matching the given completion status."""
+        return [(pet, task) for pet, task in self.schedule if task.completed == completed]
