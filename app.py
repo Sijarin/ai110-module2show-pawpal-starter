@@ -6,42 +6,62 @@ st.set_page_config(page_title="PawPal+", page_icon="🐾", layout="centered")
 st.title("🐾 PawPal+")
 
 # --- Session state setup ---
-# st.session_state acts like a dictionary that survives reruns.
-# We check "owner" exists before creating it so it isn't reset on every click.
 if "owner" not in st.session_state:
-    st.session_state.owner = None  # set after the owner form is submitted
+    st.session_state.owner = None
 
-if "pet" not in st.session_state:
-    st.session_state.pet = None    # set after the pet form is submitted
-
-# --- Owner & Pet setup ---
-st.subheader("Setup")
+# --- Step 1: Create Owner ---
+st.subheader("Step 1: Owner")
 
 col1, col2 = st.columns(2)
 with col1:
     owner_name = st.text_input("Owner name", value="Jordan")
-    available_minutes = st.number_input("Available time (minutes)", min_value=10, max_value=480, value=120)
 with col2:
-    pet_name = st.text_input("Pet name", value="Mochi")
-    species = st.selectbox("Species", ["dog", "cat", "other"])
-    age = st.number_input("Pet age", min_value=0, max_value=30, value=3)
+    available_minutes = st.number_input("Available time (minutes)", min_value=10, max_value=480, value=120)
 
-if st.button("Save owner & pet"):
-    pet = Pet(name=pet_name, species=species, age=age)
-    owner = Owner(name=owner_name, available_minutes=available_minutes)
-    owner.add_pet(pet)
-    st.session_state.owner = owner
-    st.session_state.pet = pet
-    st.success(f"Saved {owner_name} with pet {pet_name}!")
+if st.button("Save owner"):
+    st.session_state.owner = Owner(name=owner_name, available_minutes=available_minutes)
+    st.success(f"Owner '{owner_name}' saved!")
 
 st.divider()
 
-# --- Task input ---
-st.subheader("Add Tasks")
+# --- Step 2: Add Pets ---
+st.subheader("Step 2: Add Pets")
 
-if st.session_state.pet is None:
-    st.info("Save an owner and pet above before adding tasks.")
+if st.session_state.owner is None:
+    st.info("Save an owner above first.")
 else:
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        pet_name = st.text_input("Pet name", value="Mochi")
+    with col2:
+        species = st.selectbox("Species", ["dog", "cat", "other"])
+    with col3:
+        age = st.number_input("Pet age", min_value=0, max_value=30, value=3)
+
+    if st.button("Add pet"):
+        # Calls owner.add_pet() — the UI action maps directly to the class method
+        new_pet = Pet(name=pet_name, species=species, age=age)
+        st.session_state.owner.add_pet(new_pet)
+        st.success(f"Added pet '{pet_name}' to {st.session_state.owner.name}!")
+
+    if st.session_state.owner.pets:
+        st.write("Pets registered:")
+        st.table([{"name": p.name, "species": p.species, "age": p.age,
+                   "tasks": len(p.tasks)} for p in st.session_state.owner.pets])
+
+st.divider()
+
+# --- Step 3: Add Tasks to a Pet ---
+st.subheader("Step 3: Add Tasks")
+
+owner = st.session_state.owner
+if owner is None or not owner.pets:
+    st.info("Add at least one pet above before adding tasks.")
+else:
+    pet_names = [p.name for p in owner.pets]
+    selected_pet_name = st.selectbox("Assign task to pet", pet_names)
+    selected_pet = next(p for p in owner.pets if p.name == selected_pet_name)
+
     col1, col2, col3 = st.columns(3)
     with col1:
         task_title = st.text_input("Task title", value="Morning walk")
@@ -51,26 +71,28 @@ else:
         priority = st.selectbox("Priority", ["low", "medium", "high"], index=2)
 
     if st.button("Add task"):
+        # Calls pet.add_task() — directly wired to the class method
         task = CareTask(title=task_title, duration_minutes=int(duration), priority=priority)
-        st.session_state.pet.add_task(task)
-        st.success(f"Added: {task_title}")
+        selected_pet.add_task(task)
+        st.success(f"Added '{task_title}' to {selected_pet_name}!")
 
-    pending = st.session_state.pet.get_pending_tasks()
+    pending = selected_pet.get_pending_tasks()
     if pending:
-        st.write("Current tasks:")
-        st.table([{"title": t.title, "duration": t.duration_minutes, "priority": t.priority} for t in pending])
+        st.write(f"Tasks for {selected_pet_name}:")
+        st.table([{"title": t.title, "duration (min)": t.duration_minutes,
+                   "priority": t.priority} for t in pending])
     else:
-        st.info("No tasks yet. Add one above.")
+        st.info("No tasks yet for this pet.")
 
 st.divider()
 
-# --- Generate schedule ---
-st.subheader("Build Schedule")
+# --- Step 4: Generate Schedule ---
+st.subheader("Step 4: Build Schedule")
 
 if st.button("Generate schedule"):
     owner = st.session_state.owner
     if owner is None or not owner.get_all_tasks():
-        st.warning("Add an owner, a pet, and at least one task first.")
+        st.warning("Add an owner, at least one pet, and at least one task first.")
     else:
         scheduler = Scheduler(owner)
         scheduler.build_plan()
